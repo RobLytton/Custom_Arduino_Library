@@ -1,9 +1,3 @@
-#ifndef GPIO_H
-#define GPIO_H
-
-#include <avr/io.h>
-#include "../tools.h"
-
 #define A0 16
 #define A1 17
 #define A2 18
@@ -18,59 +12,87 @@ enum  pinMode {
     PULLUP
 };
 
-char* pinToDirectionRegister(char pin) {
+
+
+#include <avr/io.h>
+
+uint16_t* pinToDirectionRegister(char pin) {
     if(pin < 8) {
-        return DDRD;
+        return (uint16_t*)&DDRD;
     } else if(pin < 14) {
-        return DDRB;
-  } else if(pin < 20) {
-        return DDRC;
+        return (uint16_t*)&DDRB;
+  } else if(pin > 15 && pin < 23) {
+        return (uint16_t*)&DDRC;
   } else {
         return nullptr;
   }
 }
 
-char* pinToPortRegister(char pin) {
+uint16_t* pinToOutRegister(char pin) {
     if(pin < 8) {
-        return PORTD;
+        return (uint16_t*)&PORTD;
     } else if(pin < 14) {
-        return PORTB;
+        return (uint16_t*)&PORTB;
     } else if(pin < 20) {
-        return PORTC;
+        return (uint16_t*)&PORTC;
     } else {
         return nullptr;
     }
 }
 
-char setPinMode(unsigned char pin, unsigned char mode) {
-    if(pinToDirectionRegister(pin) == nullptr) return -1;
-    if(pinToPortRegister(pin) == nullptr) return -1;    
-    switch(mode) {
-        case INPUT:
-           pinToDirectionRegister(pin) &=  ~(1 << (pin % 8));
-           break;
-        case OUTPUT:
-            _SB(pinToDirectionRegister(pin), pin % 8);
-            break;
-        case PULLUP:
-            _CB(pinToDirectionRegister(pin), pin % 8);
-            _SB(pinToPortRegister(pin), pin % 8);
-            break;
-        case default:
-            return -1;
+uint16_t* pinToInRegister(char pin) {
+    if(pin < 8) {
+        return (uint16_t*)&PIND;
+    } else if(pin < 14) {
+        return (uint16_t*)&PINB;
+    } else if(pin < 20) {
+        return (uint16_t*)&PINC;
+    } else {
+        return nullptr;
     }
-    return 0;
 }
 
-char readDigitalPin(unsigned char pin) {
-    if(pinToPortRegister(pin) == nullptr || _RB(pinToDirectionRegister(pin), pin % 8) == OUTPUT) return -1;
-    return _RB(pinToPortRegister(pin), pin % 8);
+
+ 
+void setPinMode(unsigned int pin, unsigned int mode) {
+    
+    uint16_t* dirReg = pinToDirectionRegister(pin);
+    if(dirReg == nullptr) return;
+    
+    switch(mode) {
+        case INPUT:
+            *dirReg &= ~_BV(pin % 8);
+            break;
+        case OUTPUT:
+            *dirReg |= _BV(pin % 8);
+            break;
+        default:
+            return;
+            break;
+
+    }
+}
+
+int readDigitalPin(unsigned char pin) {
+  uint16_t* portReg = pinToInRegister(pin);
+  if(portReg == nullptr) return -1;
+  setPinMode(pin, INPUT);
+  
+
+  return (*portReg & _BV(pin % 8)) != 0;
     
 }
 
-void writeDigitalPin(unsigned char pin, unsigned char val) {
-    if(pinToPortRegister(pin) == nullptr || _RB(pinToDirectionRegister(pin), pin % 8) == INPUT) return -1;
-    val ? _SB(pinToPortRegister(pin), pin % 8) : _CB(pinToPortRegister(pin), pin % 8);
-}
 
-#endif
+void writeDigitalPin(unsigned char pin, unsigned char val) {
+  uint16_t* portReg = pinToOutRegister(pin);
+  if(portReg == nullptr) return;
+  if(val > OUTPUT) return;
+  setPinMode(pin, OUTPUT);
+  
+  if(val) {
+    *portReg |= _BV(pin % 8);
+  } else {
+    *portReg &= ~_BV(pin % 8);
+  }
+}
